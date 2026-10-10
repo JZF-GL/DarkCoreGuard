@@ -1,0 +1,154 @@
+/**
+ * 顶部 HUD：金币 / 基地生命 / 波次 / 暂停 / 倍速 / 波次横幅。
+ * 全部使用 Graphics + Label 手动绘制，输入由 GameManager 统一分发（手动命中测试）。
+ */
+import { Graphics, Label, Node, UIOpacity } from 'cc';
+import { COLORS } from '../config/GameConfig';
+import { GamePhase } from '../core/GameEvents';
+import { Rect, addGraphics, createLabel, createUiNode, drawRect, makeRect, rectContains } from '../core/GraphicsUtil';
+
+export interface HudState {
+    gold: number;
+    baseHp: number;
+    wave: number;
+    waveTotal: number;
+    phase: GamePhase;
+    prepTimer: number;
+    enemyLeft: number;
+    paused: boolean;
+    speedMul: number;
+}
+
+/** 顶部条与按钮布局常量 */
+const BAR_TOP = 640;
+const BAR_BOTTOM = 540;
+const CHIP_Y = 612;
+const CHIP_W = 200;
+const CHIP_H = 48;
+const CHIP_X = [-240, 0, 240];
+const BTN_Y = 563;
+const BTN_H = 42;
+
+const PAUSE_RECT: Rect = makeRect(305, BTN_Y, 70, BTN_H);
+const SPEED_RECT: Rect = makeRect(225, BTN_Y, 64, BTN_H);
+
+const BANNER_TTL = 1.4;
+
+export class Hud {
+    private root: Node;
+    private chromeG: Graphics;
+
+    private goldLabel: Label;
+    private hpLabel: Label;
+    private waveLabel: Label;
+    private statusLabel: Label;
+    private pauseLabel: Label;
+    private speedLabel: Label;
+
+    private bannerLabel: Label;
+    private bannerOpacity: UIOpacity;
+    private bannerTimer: number = 0;
+
+    private onTogglePause: () => void;
+    private onToggleSpeed: () => void;
+
+    constructor(parent: Node, onTogglePause: () => void, onToggleSpeed: () => void) {
+        this.onTogglePause = onTogglePause;
+        this.onToggleSpeed = onToggleSpeed;
+
+        this.root = createUiNode('Hud', parent);
+        const chrome = createUiNode('Chrome', this.root);
+        this.chromeG = addGraphics(chrome);
+        this.drawChrome();
+
+        this.goldLabel = createLabel(this.root, { size: 26, bold: true, color: COLORS.gold, x: CHIP_X[0], y: CHIP_Y });
+        this.hpLabel = createLabel(this.root, { size: 26, bold: true, color: COLORS.hp, x: CHIP_X[1], y: CHIP_Y });
+        this.waveLabel = createLabel(this.root, { size: 26, bold: true, color: COLORS.text, x: CHIP_X[2], y: CHIP_Y });
+        this.statusLabel = createLabel(this.root, { size: 21, color: COLORS.textDim, align: 'left', x: -332, y: BTN_Y });
+        this.pauseLabel = createLabel(this.root, { size: 22, bold: true, color: COLORS.text, x: PAUSE_RECT.x + PAUSE_RECT.w / 2, y: BTN_Y });
+        this.speedLabel = createLabel(this.root, { size: 22, bold: true, color: COLORS.text, x: SPEED_RECT.x + SPEED_RECT.w / 2, y: BTN_Y });
+
+        // 波次横幅
+        const banner = createUiNode('Banner', this.root, 0, 400);
+        this.bannerOpacity = banner.addComponent(UIOpacity);
+        this.bannerOpacity.opacity = 0;
+        this.bannerLabel = createLabel(banner, { text: '', size: 54, bold: true, color: COLORS.text });
+    }
+
+    /** 显示一次波次横幅 */
+    showBanner(text: string): void {
+        this.bannerLabel.string = text;
+        this.bannerTimer = BANNER_TTL;
+    }
+
+    update(dt: number): void {
+        if (this.bannerTimer <= 0) {
+            return;
+        }
+        this.bannerTimer -= dt;
+        if (this.bannerTimer <= 0) {
+            this.bannerTimer = 0;
+            this.bannerOpacity.opacity = 0;
+            return;
+        }
+        const t = this.bannerTimer / BANNER_TTL;
+        this.bannerOpacity.opacity = Math.round(255 * Math.min(1, t * 2.2));
+    }
+
+    refresh(state: HudState): void {
+        this.goldLabel.string = '金币 ' + state.gold;
+        this.hpLabel.string = '生命 ' + state.baseHp;
+        this.waveLabel.string = '波次 ' + state.wave + '/' + state.waveTotal;
+        this.pauseLabel.string = state.paused ? '继续' : '暂停';
+        this.speedLabel.string = state.speedMul + 'x';
+
+        const waveText = state.wave <= 0 ? '第 1 波准备中' : '第 ' + state.wave + ' 波';
+        if (state.phase === GamePhase.Prepare) {
+            const wait = Math.max(0, Math.ceil(state.prepTimer));
+            this.statusLabel.string = '准备中 · ' + wait + 's 后出怪';
+        } else if (state.phase === GamePhase.Won) {
+            this.statusLabel.string = '全部清空，防守成功';
+        } else if (state.phase === GamePhase.Lost) {
+            this.statusLabel.string = '基地失守';
+        } else {
+            this.statusLabel.string = waveText + '进行中 · 剩余 ' + state.enemyLeft + ' 只';
+        }
+    }
+
+    /** 返回 true 表示点击已被 HUD 消费 */
+    handleTap(x: number, y: number): boolean {
+        if (rectContains(SPEED_RECT, x, y)) {
+            this.onToggleSpeed();
+            return true;
+        }
+        if (rectContains(PAUSE_RECT, x, y)) {
+            this.onTogglePause();
+            return true;
+        }
+        if (y >= BAR_BOTTOM) {
+            // 顶部 HUD 区域整体吞掉点击，避免误触战场
+            return true;
+        }
+        return false;
+    }
+
+    private drawChrome(): void {
+        const g = this.chromeG;
+        g.clear();
+        // 顶部条（横向加宽，覆盖宽屏黑边）
+        drawRect(g, -1000, BAR_BOTTOM, 2000, BAR_TOP - BAR_BOTTOM, COLORS.hudBg);
+        drawRect(g, -1000, BAR_BOTTOM, 2000, 3, COLORS.gridLine);
+
+        // 三个数据胶囊
+        const accents = [COLORS.gold, COLORS.hp, COLORS.text];
+        for (let i = 0; i < CHIP_X.length; i++) {
+            const cx = CHIP_X[i];
+            drawRect(g, cx - CHIP_W / 2, CHIP_Y - CHIP_H / 2, CHIP_W, CHIP_H, COLORS.panelBg, COLORS.panelBorder, 2, 12);
+            drawRect(g, cx - CHIP_W / 2 + 16, CHIP_Y - CHIP_H / 2 + 5, CHIP_W - 32, 3, accents[i]);
+        }
+
+        // 按钮
+        drawRect(g, PAUSE_RECT.x, PAUSE_RECT.y, PAUSE_RECT.w, PAUSE_RECT.h, COLORS.panelBg, COLORS.panelBorder, 2, 10);
+        drawRect(g, SPEED_RECT.x, SPEED_RECT.y, SPEED_RECT.w, SPEED_RECT.h, COLORS.panelBg, COLORS.panelBorder, 2, 10);
+    }
+}
