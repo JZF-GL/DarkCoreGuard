@@ -27,7 +27,8 @@ export class TowerSystem {
 
     /** 复用一个开火回调，避免每帧新建闭包 */
     private readonly fireFn = (tower: Tower, target: Enemy): void => {
-        this.bullets.fire(tower, target);
+        const p = tower.node.position;
+        this.bullets.fire(tower, p.x, p.y, target);
     };
 
     constructor(parent: Node, grid: Grid, enemies: EnemySystem, bullets: BulletSystem, economy: EconomySystem) {

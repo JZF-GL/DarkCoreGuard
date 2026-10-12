@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\assets",
+    "\\assets\\scripts",
+    "\\assets\\scripts\\config",
+    "\\assets\\scripts\\ui",
+    "\\docs",
+    "\\settings",
+    "\\settings\\v2",
+    "\\settings\\v2\\packages"
+  ],
+  "SelectedNode": "\\assets\\scripts\\Bootstrap.ts",
+  "PreviewInSolutionExplorer": false
+}

@@ -42,7 +42,7 @@ export class GameManager extends Component {
     private menu!: BuildMenu;
     private result!: ResultPanel;
 
-    private save: SaveData = { bestWave: 0, playCount: 0, winCount: 0 };
+    private save: SaveData = { bestWave: 0, circleBestWave: 0, playCount: 0, winCount: 0, levelStars: [] };
 
     private selected: Tower | null = null;
     private over: boolean = false;
@@ -196,7 +196,7 @@ export class GameManager extends Component {
             onClose: () => this.handleCloseMenu(),
             onCallNextWave: () => this.handleCallNextWave(),
         });
-        this.result = new ResultPanel(layer, () => this.startGame());
+        this.result = new ResultPanel(layer);
     }
 
     // ---------- 局内流程 ----------
@@ -249,7 +249,17 @@ export class GameManager extends Component {
         }
         writeSave(this.save);
 
-        this.result.show(win, wave, this.waves.totalWaves, this.save.bestWave, this.save.playCount, this.save.winCount);
+        this.result.show({
+            win,
+            stars: 0,
+            lines: [
+                '到达波次   ' + wave + ' / ' + this.waves.totalWaves,
+                '历史最佳   ' + this.save.bestWave,
+                '累计开局   ' + this.save.playCount + '    通关   ' + this.save.winCount,
+            ],
+            tip: win ? '全部 ' + this.waves.totalWaves + ' 波敌人已被清空' : '防线被突破，重新布防试试',
+            buttons: [{ label: '再来一局', color: COLORS.selection, onTap: () => this.startGame() }],
+        });
         vibrateShort();
         bus.emit(GameEvent.GameOver, { win, wave, bestWave: this.save.bestWave });
     }

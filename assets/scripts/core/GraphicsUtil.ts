@@ -124,6 +124,31 @@ export function drawPolygon(g: Graphics, points: number[][], fill?: number, stro
 
 export type TextAlign = 'left' | 'center' | 'right';
 
+/** 五角星的十个顶点：外/内半径交替，从正上方开始 */
+export function starPoints(cx: number, cy: number, outer: number, inner: number): number[][] {
+    const points: number[][] = [];
+    for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? outer : inner;
+        const a = -Math.PI / 2 + (Math.PI * i) / 5;
+        points.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return points;
+}
+
+/** 五角星（关卡星级评价用） */
+export function drawStar(
+    g: Graphics,
+    cx: number,
+    cy: number,
+    outer: number,
+    inner: number,
+    fill?: number,
+    stroke?: number,
+    lineWidth: number = 2,
+): void {
+    drawPolygon(g, starPoints(cx, cy, outer, inner), fill, stroke, lineWidth);
+}
+
 export interface LabelOptions {
     text?: string;
     size?: number;

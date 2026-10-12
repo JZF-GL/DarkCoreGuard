@@ -126,6 +126,11 @@ export class Enemy implements IPoolable {
         return this.grid.progressOf(this.distance);
     }
 
+    /** 命中判定半径（实现 CombatTarget） */
+    get hitRadius(): number {
+        return this.def.radius;
+    }
+
     onRelease(): void {
         this.alive = false;
         this.node.active = false;

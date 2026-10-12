@@ -7,6 +7,7 @@ import { CELL_SIZE, COLORS } from '../config/GameConfig';
 import { TowerDef, TowerStat, towerStat } from '../config/TowerConfig';
 import { addGraphics, colorOf, createUiNode, drawCircle, drawRect } from '../core/GraphicsUtil';
 import { IPoolable } from '../core/ObjectPool';
+import { BulletKind } from './Bullet';
 import { Enemy } from './Enemy';
 
 /** 塔的绘制半径 */
@@ -67,6 +68,44 @@ export class Tower implements IPoolable {
 
     get isMaxLevel(): boolean {
         return this.level >= 3;
+    }
+
+    // ---------- BulletSource：把塔的数值适配成弹道需要的口径 ----------
+
+    get bulletKind(): BulletKind {
+        return this.def.type;
+    }
+
+    get bulletSpeed(): number {
+        return this.def.bulletSpeed;
+    }
+
+    get bulletRadius(): number {
+        return this.def.bulletRadius;
+    }
+
+    get bulletColor(): number {
+        return this.def.type === 'cannon' ? this.def.color : this.def.barrelColor;
+    }
+
+    get explodeRadius(): number {
+        return this.def.explodeRadius;
+    }
+
+    get explodeFalloff(): number {
+        return this.def.explodeFalloff;
+    }
+
+    get bulletDamage(): number {
+        return this.stat.damage;
+    }
+
+    get bulletSlowRate(): number {
+        return this.stat.slowRate;
+    }
+
+    get bulletSlowDuration(): number {
+        return this.def.slowDuration;
     }
 
     upgrade(): void {

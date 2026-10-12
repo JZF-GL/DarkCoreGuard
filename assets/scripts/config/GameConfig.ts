@@ -20,6 +20,19 @@ export const GRID_ROWS = 13;
 export const CELL_SIZE = 80;
 /** 棋盘纵向中心偏移：为顶部 HUD 与底部操作条留出空间 */
 export const PLAYFIELD_CENTER_Y = 10;
+/**
+ * 镜头缩放（世界 → 屏幕）。1 = 不缩放；越小 = 镜头越高、视野越大、画面里的一切越小。
+ * 这是「视角远近」的唯一调节入口：屏幕能装下多少世界 = 屏幕尺寸 / CAMERA_ZOOM。
+ * 凡是画进战场的尺寸都按「设计像素」写常量，再用 WORLD 换成世界单位，否则尺寸会和镜头对不上。
+ * 例：CAMERA_ZOOM = 0.5 时，720×930 的可玩区能装下 1440×1860 的世界，视野翻倍，
+ * 整块圆形战场（半径 310）全部落在画面内 —— 玩家看得到整圈出生圆，也看得到敌人一路推进。
+ */
+export const CAMERA_ZOOM = 0.5;
+/** 设计像素 → 世界单位的换算系数：世界单位 = 设计像素 × WORLD = 设计像素 / CAMERA_ZOOM */
+export const WORLD = 1 / CAMERA_ZOOM;
+
+/** 圆形防守模式的圆心纵向位置（世界单位，位于缩放后的战场容器内） */
+export const CIRCLE_CENTER_Y = -30 * WORLD;
 
 /** 顶部 HUD 区域（Canvas 局部坐标） */
 export const HUD_TOP = HALF_H;
