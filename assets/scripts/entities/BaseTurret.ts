@@ -86,8 +86,15 @@ function angDist(a: number, b: number): number {
     return d > 180 ? 360 - d : d;
 }
 
-/** 索敌回调：返回指定方向扇区内「最接近核心」的敌人 */
-export type TurretFinder = (x: number, y: number, range: number, dirDeg: number, toleranceDeg: number) => CircleEnemy | null;
+/** 索敌回调：返回指定方向扇区内「最接近核心」的敌人。exclude 为已被其他炮管锁定的敌人，需要跳过 */
+export type TurretFinder = (
+    x: number,
+    y: number,
+    range: number,
+    dirDeg: number,
+    toleranceDeg: number,
+    exclude?: readonly CircleEnemy[],
+) => CircleEnemy | null;
 
 /**
  * 开火回调。传入炮口坐标与瞄准点，由调用方向 BulletSystem 发起直线射击。
@@ -294,6 +301,8 @@ export class BaseTurret {
         // 炮管不会完全重叠，两发子弹又都能落在敌人身上。
         let focusDeg = 0;
         let claimed: number[] | null = null;
+        // 本帧已被锁定的敌人：后续炮管选目标时跳过，避免多根炮管堆在同一目标上
+        const locked: CircleEnemy[] = [];
         if (focus && focus.alive) {
             const lp = focus.node.position;
             focusDeg = (Math.atan2(lp.y - center.y, lp.x - center.x) * 180) / Math.PI;
@@ -302,6 +311,7 @@ export class BaseTurret {
                 .sort((a, b) => a.d - b.d)
                 .slice(0, Math.min(LONE_MAX_GUNS, this.barrels.length))
                 .map((o) => o.i);
+            locked.push(focus);
         }
 
         for (let bi = 0; bi < this.barrels.length; bi++) {
@@ -310,15 +320,21 @@ export class BaseTurret {
                 barrel.cooldown -= dt;
             }
 
-            // 目标角度：被独敌点名的炮管按名次左右分开瞄准，其余炮管走各自扇区索敌
+            // 目标角度：被集火点名的炮管按名次左右分开瞄准，其余炮管走各自扇区索敌
             let targetDeg: number | null = null;
             const rank = claimed ? claimed.indexOf(bi) : -1;
             if (rank >= 0) {
                 const half = claimed.length > 1 ? LONE_AIM_SEP_DEG / 2 : 0;
                 targetDeg = focusDeg + (rank === 0 ? -half : half);
             } else {
-                const target = find(center.x, center.y, range, barrel.baseAngle, tolerance);
+                // 先在自己扇区里找，排除已被其他炮管锁定的敌人
+                let target = find(center.x, center.y, range, barrel.baseAngle, tolerance, locked);
+                if (!target) {
+                    // 本扇区没有可打的目标：退化为全场索敌补位，让空闲炮管去管别的方向
+                    target = find(center.x, center.y, range, 0, 180, locked);
+                }
                 if (target && target.alive) {
+                    locked.push(target);
                     const tp = target.node.position;
                     targetDeg = (Math.atan2(tp.y - center.y, tp.x - center.x) * 180) / Math.PI;
                 }

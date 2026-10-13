@@ -61,14 +61,26 @@ export class CircleEnemySystem {
      * @param dirDeg 扇区中心方向（度）
      * @param toleranceDeg 扇区半角（度），180 表示不限方向
      * @param attackScale 当前攻击区收缩比例（attackScaleOf），无伤走廊内的敌人不参与索敌
+     * @param exclude 已被其他炮管锁定的敌人，跳过不选（多炮管目标分配用，避免扎堆）
      */
-    findInSector(x: number, y: number, range: number, dirDeg: number, toleranceDeg: number, attackScale: number): CircleEnemy | null {
+    findInSector(
+        x: number,
+        y: number,
+        range: number,
+        dirDeg: number,
+        toleranceDeg: number,
+        attackScale: number,
+        exclude?: readonly CircleEnemy[],
+    ): CircleEnemy | null {
         const rangeSq = range * range;
         const centerAngle = (dirDeg * Math.PI) / 180;
         const tolerance = (Math.min(180, toleranceDeg) * Math.PI) / 180;
         let best: CircleEnemy | null = null;
         for (const enemy of this.active) {
             if (!enemy.alive) {
+                continue;
+            }
+            if (exclude && exclude.indexOf(enemy) >= 0) {
                 continue;
             }
             const p = enemy.node.position;

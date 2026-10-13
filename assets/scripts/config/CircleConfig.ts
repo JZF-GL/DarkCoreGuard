@@ -120,8 +120,8 @@ export function projectileDamageMul(projectiles: number): number {
     return 1 - PB_DISTINCT_DAMAGE_PENALTY * expansions;
 }
 
-/** 单个方向上的弹道槽位角度间隔（度）。异向弹道按 360/n 均匀分布 */
-export const BARREL_MAX = 12;
+/** 炮管数量上限（异向弹道叠加后的封顶值） */
+export const BARREL_MAX = 4;
 /** 同向弹道的相邻两发之间的角度差（度）：2 发时即 −3° / +3°，呈扇形展开 */
 export const SPREAD_PER_LANE_DEG = 6;
 /** 炮塔索敌半径。真正的限制是攻击区矩形（可玩区 × ATTACK_SCALE），
@@ -196,20 +196,20 @@ export const CARD_DEFS: CardDef[] = [
         id: 'pb_distinct',
         kind: 'pb_distinct',
         name: '弹道扩充',
-        desc: '异向弹道 +1\n可同时攻击更多方向\n前 4 次每次攻击力 −10%',
+        desc: '异向弹道 +1\n炮管最多 4 个\n每次攻击力 −10%',
         color: 0x4fc3f7,
         weight: 10,
-        maxStacks: 8,
+        maxStacks: 3,
         skill: false,
     },
     {
         id: 'pb_same',
         kind: 'pb_same',
         name: '同向齐射',
-        desc: '同向弹道 +1\n同一目标多打一发',
+        desc: '同向弹道 +1\n同一目标多打一发\n最多 3 条弹道',
         color: 0x29b6f6,
         weight: 10,
-        maxStacks: 8,
+        maxStacks: 2,
         skill: false,
     },
     {

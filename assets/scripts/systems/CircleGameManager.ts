@@ -452,8 +452,15 @@ export class CircleGameManager extends Component {
 
     // ---------- 战斗回调 ----------
 
-    private findTarget = (x: number, y: number, range: number, dirDeg: number, toleranceDeg: number): CircleEnemy | null => {
-        return this.enemies.findInSector(x, y, range, dirDeg, toleranceDeg, this.attackScale);
+    private findTarget = (
+        x: number,
+        y: number,
+        range: number,
+        dirDeg: number,
+        toleranceDeg: number,
+        exclude?: readonly CircleEnemy[],
+    ): CircleEnemy | null => {
+        return this.enemies.findInSector(x, y, range, dirDeg, toleranceDeg, this.attackScale, exclude);
     };
 
     /** 中央炮塔发射直线弹：子弹沿炮口方向飞出，命中即结算，未命中飞出边界消失 */
