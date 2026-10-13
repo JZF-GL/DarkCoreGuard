@@ -79,7 +79,7 @@ export const ARMOR_MIN_DAMAGE_RATE = 0.15;
 
 // ---------- 存档 ----------
 /** 本地存档 key */
-export const SAVE_KEY = 'sdmini.save.v1';
+export const SAVE_KEY = 'darkcoreguard.save.v1';
 
 // ---------- 配色（0xRRGGBB） ----------
 export const COLORS = {

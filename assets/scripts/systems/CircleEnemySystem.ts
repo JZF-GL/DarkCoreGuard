@@ -119,6 +119,49 @@ export class CircleEnemySystem {
         return best;
     }
 
+    /**
+     * 判断攻击区内的敌人是否全部聚集在「单一方向」：
+     * 收集所有敌人相对中心点的角度，若角分布跨度 ≤ sectorDeg 则视为同方向，
+     * 返回其中最接近核心的敌人（供炮塔集火）。敌人分布在多个方向时返回 null。
+     * @param cx,cy 中心点（通常为炮塔坐标）
+     * @param attackScale 攻击区收缩比例（无伤走廊内的敌人不参与）
+     * @param sectorDeg 单一方向的角分布阈值（度），如 30
+     */
+    findSingleDirection(cx: number, cy: number, attackScale: number, sectorDeg: number): CircleEnemy | null {
+        const angles: number[] = [];
+        let best: CircleEnemy | null = null;
+        for (const enemy of this.active) {
+            if (!enemy.alive) {
+                continue;
+            }
+            const p = enemy.node.position;
+            if (!isInAttackArea(p.x, p.y, attackScale)) {
+                continue;
+            }
+            angles.push((Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI);
+            if (!best || enemy.radius < best.radius) {
+                best = enemy;
+            }
+        }
+        if (!best || angles.length === 0) {
+            return null;
+        }
+        if (angles.length === 1) {
+            return best;
+        }
+        // 圆形角分布跨度：排序后找最大间隙，跨度 = 360° − 最大间隙
+        const sorted = angles.slice().sort((a, b) => a - b);
+        let maxGap = sorted[0] + 360 - sorted[sorted.length - 1];
+        for (let i = 1; i < sorted.length; i++) {
+            const gap = sorted[i] - sorted[i - 1];
+            if (gap > maxGap) {
+                maxGap = gap;
+            }
+        }
+        const span = 360 - maxGap;
+        return span <= sectorDeg ? best : null;
+    }
+
     /** 对圆形范围内的敌人执行回调（范围伤害用） */
     forEachInRange(x: number, y: number, range: number, callback: (enemy: CircleEnemy, distance: number) => void): void {
         const rangeSq = range * range;

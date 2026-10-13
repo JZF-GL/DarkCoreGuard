@@ -42,8 +42,11 @@ export interface BulletOptions {
     slowDuration?: number;
 }
 
-/** 子弹最长存活时间，防止目标死亡后子弹永久飞行 */
+/** 追踪弹/落点弹最长存活时间，防止目标死亡后子弹永久飞行 */
 const MAX_LIFE = 3;
+/** 直线弹的基础存活时间 + 每级反弹的额外秒数，确保弹体能用完所有反弹次数 */
+const STRAIGHT_BASE_LIFE = 4;
+const STRAIGHT_PER_BOUNCE = 2;
 /**
  * 直线弹的飞行边界 = 战斗可玩区（屏幕矩形扣掉顶部 HUD 与底部技能条）。
  * 子弹撞到边界后：还有反弹次数就按边界做镜像反射并继续飞行，次数耗尽则消失，
@@ -82,6 +85,8 @@ export class Bullet implements IPoolable {
     /** 弹体颜色，爆炸特效沿用该颜色 */
     color: number = 0xffffff;
     private life: number = 0;
+    /** 当前子弹的寿命上限：直线弹会随反弹次数放宽，追踪弹固定 MAX_LIFE */
+    private maxLife: number = MAX_LIFE;
 
     constructor(parent: Node) {
         this.node = createUiNode('Bullet', parent);
@@ -139,6 +144,12 @@ export class Bullet implements IPoolable {
 
         this.node.setPosition(opts.x, opts.y, 0);
         this.node.active = true;
+
+        // 直线弹的寿命随反弹次数放宽，确保能用完所有反弹；追踪弹固定 MAX_LIFE
+        this.maxLife = this.straight
+            ? STRAIGHT_BASE_LIFE + this.bounces * STRAIGHT_PER_BOUNCE
+            : MAX_LIFE;
+
         this.draw();
     }
 
@@ -190,7 +201,7 @@ export class Bullet implements IPoolable {
             }
 
             this.node.setPosition(nx, ny, 0);
-            if (this.life > MAX_LIFE) {
+            if (this.life > this.maxLife) {
                 this.alive = false;
                 this.target = null;
                 return true;
@@ -209,7 +220,7 @@ export class Bullet implements IPoolable {
         const step = this.speed * dt;
         const hitRadius = this.homing && this.target ? Math.max(6, this.target.hitRadius * 0.6) : 8;
 
-        if (dist <= step + hitRadius || this.life > MAX_LIFE) {
+        if (dist <= step + hitRadius || this.life > this.maxLife) {
             this.node.setPosition(this.destX, this.destY, 0);
             this.alive = false;
             return true;
@@ -237,6 +248,8 @@ export class Bullet implements IPoolable {
         this.dirX = 1;
         this.dirY = 0;
         this.bounces = 0;
+        this.life = 0;
+        this.maxLife = MAX_LIFE;
         this.node.active = false;
     }
 

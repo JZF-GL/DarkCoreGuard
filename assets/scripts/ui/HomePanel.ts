@@ -68,7 +68,7 @@ export class HomePanel {
         const bg = createUiNode('Bg', this.root);
         drawRect(addGraphics(bg), -2000, -2000, 4000, 4000, COLORS.bg);
 
-        createLabel(this.root, { text: 'SDMini 塔防', size: 64, bold: true, color: COLORS.text, x: 0, y: TITLE_Y });
+        createLabel(this.root, { text: '暗核守卫', size: 64, bold: true, color: COLORS.text, x: 0, y: TITLE_Y });
         createLabel(this.root, { text: '圆形防守 · 10 关挑战', size: 24, color: COLORS.textDim, x: 0, y: SUBTITLE_Y });
 
         const main = createUiNode('Main', this.root, 0, MAIN_Y);

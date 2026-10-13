@@ -76,7 +76,7 @@ export function boot(root: Node): void {
     }
     const canvas = findCanvas(root);
     if (!canvas) {
-        console.warn('[SDMini] 未找到 Canvas 节点，无法启动');
+        console.warn('[DarkCoreGuard] 未找到 Canvas 节点，无法启动');
         return;
     }
     booted = true;

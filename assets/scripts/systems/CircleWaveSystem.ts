@@ -12,8 +12,8 @@ import { ENEMY_DEFS, EnemyType } from '../config/EnemyConfig';
 import { GamePhase } from '../core/GameEvents';
 import { CircleEnemySystem } from './CircleEnemySystem';
 
-/** 第一波准备时间（秒） */
-const FIRST_PREP = 6;
+/** 第一波准备时间（秒）：0 表示开局立即开始，不等待 */
+const FIRST_PREP = 0;
 /** 波与波之间的准备时间（秒） */
 const BETWEEN_PREP = 3;
 

@@ -63,8 +63,27 @@ interface Barrel {
     g: Graphics;
     /** 该炮管的基准朝向（度），异向弹道按圆周均分 */
     baseAngle: number;
+    /** 当前实际朝向（度），用于平滑插值 */
+    currentAngle: number;
     /** 开火冷却剩余秒数 */
     cooldown: number;
+}
+
+/** 炮管旋转过渡速度：每秒最多追赶的角度（度/秒），值越大转得越快 */
+const TURN_DEG_PER_SEC = 360;
+/** 炮管是否已对准目标的阈值（度）：角度差 ≤ 该值时才允许开火 */
+const AIM_TOLERANCE_DEG = 2;
+
+/** 独敌集火：攻击区内只剩一只敌人时，最多几根炮管同时攻击它 */
+const LONE_MAX_GUNS = 2;
+/** 独敌集火时两根炮管瞄准方向的总间隔（度）：主攻/副攻各偏一半，避免炮管完全重叠。
+ *  该角度下两发子弹在攻击区最远角仍都能命中（子弹半径 + 敌人命中半径 覆盖横向偏差），想更明显可加大。 */
+const LONE_AIM_SEP_DEG = 4;
+
+/** 两个角度的最短角距（0~180 度） */
+function angDist(a: number, b: number): number {
+    const d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
 }
 
 /** 索敌回调：返回指定方向扇区内「最接近核心」的敌人 */
@@ -246,8 +265,8 @@ export class BaseTurret {
         this.flashOpacity.opacity = 255;
     }
 
-    /** 每帧：每条炮管独立索敌与开火 */
-    update(dt: number, find: TurretFinder, fire: TurretFire): void {
+    /** 每帧：每条炮管独立索敌与开火。focus 为「单一方向」集火目标（攻击区内所有敌人角分布 ≤30° 时返回最近核心的敌人），无则各炮管走各自扇区索敌 */
+    update(dt: number, find: TurretFinder, fire: TurretFire, focus: CircleEnemy | null = null): void {
         if (this.shieldOn) {
             this.shieldPhase += dt;
             const s = 1 + SHIELD_PULSE_AMP * Math.sin(this.shieldPhase * SHIELD_PULSE_SPEED);
@@ -270,33 +289,68 @@ export class BaseTurret {
         const range = TURRET_RANGE;
         const tolerance = Math.min(180, (180 / this.projectiles) * 1.2);
 
-        for (const barrel of this.barrels) {
+        // 单一方向集火：攻击区内所有敌人角分布 ≤30° 时，按「基准朝向离敌人方向最近」点名主攻与副攻，
+        // 两者的瞄准方向以敌人真实方向为中心左右各偏 LONE_AIM_SEP_DEG/2，
+        // 炮管不会完全重叠，两发子弹又都能落在敌人身上。
+        let focusDeg = 0;
+        let claimed: number[] | null = null;
+        if (focus && focus.alive) {
+            const lp = focus.node.position;
+            focusDeg = (Math.atan2(lp.y - center.y, lp.x - center.x) * 180) / Math.PI;
+            claimed = this.barrels
+                .map((b, i) => ({ i, d: angDist(b.baseAngle, focusDeg) }))
+                .sort((a, b) => a.d - b.d)
+                .slice(0, Math.min(LONE_MAX_GUNS, this.barrels.length))
+                .map((o) => o.i);
+        }
+
+        for (let bi = 0; bi < this.barrels.length; bi++) {
+            const barrel = this.barrels[bi];
             if (barrel.cooldown > 0) {
                 barrel.cooldown -= dt;
             }
-            const target = find(center.x, center.y, range, barrel.baseAngle, tolerance);
-            if (!target || !target.alive) {
-                // 无目标时缓慢回正到基准朝向
-                barrel.node.angle = barrel.baseAngle;
+
+            // 目标角度：被独敌点名的炮管按名次左右分开瞄准，其余炮管走各自扇区索敌
+            let targetDeg: number | null = null;
+            const rank = claimed ? claimed.indexOf(bi) : -1;
+            if (rank >= 0) {
+                const half = claimed.length > 1 ? LONE_AIM_SEP_DEG / 2 : 0;
+                targetDeg = focusDeg + (rank === 0 ? -half : half);
+            } else {
+                const target = find(center.x, center.y, range, barrel.baseAngle, tolerance);
+                if (target && target.alive) {
+                    const tp = target.node.position;
+                    targetDeg = (Math.atan2(tp.y - center.y, tp.x - center.x) * 180) / Math.PI;
+                }
+            }
+            if (targetDeg === null) {
+                // 无目标时不回正，保持最后瞄准的角度
                 continue;
             }
-            const tp = target.node.position;
-            const dx = tp.x - center.x;
-            const dy = tp.y - center.y;
-            const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
-            barrel.node.angle = deg;
+
+            // 最短路径插值：把角度差归一化到 (-180, 180]
+            let diff = targetDeg - barrel.currentAngle;
+            while (diff > 180) diff -= 360;
+            while (diff <= -180) diff += 360;
+            const absDiff = Math.abs(diff);
+            const step = Math.min(absDiff, TURN_DEG_PER_SEC * dt);
+            barrel.currentAngle += Math.sign(diff) * step;
+            barrel.node.angle = barrel.currentAngle;
 
             if (barrel.cooldown > 0) {
+                continue;
+            }
+            // 炮管未对准目标则暂不开火，继续旋转
+            if (absDiff > AIM_TOLERANCE_DEG) {
                 continue;
             }
             barrel.cooldown = this.stat.fireInterval;
 
-            // 同向弹道：一次打出多发放向同一目标，各发按固定角度差呈扇形展开
-            // （2 发时即 −3° / +3°，不会重叠在同一条直线上）
+            // 用当前插值后的角度射击，保证炮管朝向与弹道方向一致
             const lanes = this.sameLanes;
             for (let lane = 0; lane < lanes; lane++) {
                 const offsetDeg = (lane - (lanes - 1) / 2) * SPREAD_PER_LANE_DEG;
-                const rad = ((deg + offsetDeg) * Math.PI) / 180;
+                const rad = ((barrel.currentAngle + offsetDeg) * Math.PI) / 180;
                 const ux = Math.cos(rad);
                 const uy = Math.sin(rad);
                 fire(
@@ -321,15 +375,18 @@ export class BaseTurret {
             const baseAngle = -90 + (360 / this.projectiles) * i;
             node.angle = baseAngle;
             this.drawBarrel(g);
-            this.barrels.push({ node, g, baseAngle, cooldown: 0 });
+            this.barrels.push({ node, g, baseAngle, currentAngle: baseAngle, cooldown: 0 });
         }
     }
 
     private drawBarrel(g: Graphics): void {
         g.clear();
-        // 炮管：从底座边缘伸出的圆角矩形 + 炮口
+        // 炮管：从底座边缘伸出的圆角矩形 + 炮口 + 根部圆点
         drawRect(g, BARREL_INNER, -BARREL_THICK / 2, BARREL_LENGTH, BARREL_THICK, COLORS.panelBorder, 0x7ef0ff, BARREL_LINE, BARREL_RADIUS);
         drawCircle(g, BARREL_INNER + BARREL_LENGTH, 0, MUZZLE_RADIUS, 0x7ef0ff);
+        // 炮管根部圆点（比炮口稍大，固定在底座边缘）
+        const ROOT_RADIUS = 5 * S;
+        drawCircle(g, BARREL_INNER, 0, ROOT_RADIUS, 0x2b6a78, 0x7ef0ff, 2 * S);
     }
 
     private drawBase(): void {
@@ -339,9 +396,9 @@ export class BaseTurret {
         drawCircle(g, 0, 0, HALO_RADIUS, undefined, 0x2b6a78, 3 * S);
         // 底座
         drawCircle(g, 0, 0, BASE_RADIUS, COLORS.panelBg, 0x7ef0ff, 4 * S);
-        // 核心
-        drawCircle(g, 0, 0, 9 * S, 0x7ef0ff);
-        drawCircle(g, 0, 0, 4 * S, COLORS.text);
+        // 核心（调大，让根部更醒目）
+        drawCircle(g, 0, 0, 12 * S, 0x7ef0ff);
+        drawCircle(g, 0, 0, 6 * S, COLORS.text);
     }
 
     /** 护盾光环：外层柔光 + 内层实环，两层同心叠出霓虹质感（绘制一次，靠节点缩放做呼吸）；

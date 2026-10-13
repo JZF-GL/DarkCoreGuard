@@ -112,6 +112,7 @@ export class CircleGameManager extends Component {
     private pendingLevelUps: number = 0;
 
     private hudState: CircleHudState = {
+        stage: 1,
         coreHp: 0,
         coreHpMax: START_BASE_HP,
         coreShield: 0,
@@ -195,7 +196,8 @@ export class CircleGameManager extends Component {
         const step = raw * this.speedMul;
         this.waves.update(step);
         this.enemies.update(step);
-        this.turret.update(step, this.findTarget, this.fireTurret);
+        const center = this.turret.node.position;
+        this.turret.update(step, this.findTarget, this.fireTurret, this.enemies.findSingleDirection(center.x, center.y, this.attackScale, 30));
         this.bullets.update(step);
         this.skills.update(step);
         this.fx.update(step);
@@ -258,7 +260,13 @@ export class CircleGameManager extends Component {
         );
         this.upgrades = new UpgradeSystem(this.turret, this.skills, this.coreEffects);
         this.waves = new CircleWaveSystem(this.enemies, levelDef(this.levelId), {
-            onWaveStarted: (wave, total) => this.hud.showBanner(wave >= total ? '最后一波！' : '第 ' + wave + ' 波'),
+            onWaveStarted: (wave, total) => {
+                // 第 1 波与开局「关卡名」横幅同时触发，跳过以免盖掉关卡名
+                if (wave === 1 && total > 1) {
+                    return;
+                }
+                this.hud.showBanner(wave >= total ? '最后一波！' : '第 ' + wave + ' 波');
+            },
             onPhaseChanged: (phase) => this.onPhaseChanged(phase),
         });
     }
@@ -458,9 +466,7 @@ export class CircleGameManager extends Component {
         // 死亡：先铺一层原来的扩散波纹，再叠上白色玻璃碎片
         this.fx.explosion(p.x, p.y, enemy.hitRadius * 1.8, enemy.def.color);
         this.fx.shatter(p.x, p.y, enemy.hitRadius * 0.8, 0xffffff);
-        const xp = enemyXp(enemy.def);
-        this.fx.floatText(p.x, p.y + 24, '+' + xp + ' 经验', COLORS.selection);
-        this.gainXp(xp);
+        this.gainXp(enemyXp(enemy.def));
     }
 
     private handleReachedCore(enemy: CircleEnemy): void {
@@ -571,6 +577,7 @@ export class CircleGameManager extends Component {
 
     private refreshUi(): void {
         const s = this.hudState;
+        s.stage = this.levelId;
         s.coreHp = this.coreHp;
         s.coreHpMax = START_BASE_HP;
         s.coreShield = this.coreShield;

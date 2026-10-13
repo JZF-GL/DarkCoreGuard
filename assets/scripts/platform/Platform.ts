@@ -91,7 +91,7 @@ export function loadSave(): SaveData {
         }
         return normalize(JSON.parse(text));
     } catch (e) {
-        console.warn('[SDMini] 读取存档失败，使用默认值', e);
+        console.warn('[DarkCoreGuard] 读取存档失败，使用默认值', e);
         return { ...DEFAULT_SAVE, levelStars: [] };
     }
 }
@@ -100,7 +100,7 @@ export function writeSave(data: SaveData): void {
     try {
         sys.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     } catch (e) {
-        console.warn('[SDMini] 写入存档失败', e);
+        console.warn('[DarkCoreGuard] 写入存档失败', e);
     }
 }
 
